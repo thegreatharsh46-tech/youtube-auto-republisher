@@ -18,6 +18,12 @@ class UploadManager {
         try {
             console.log('Initializing upload manager...');
 
+            // Setup user profile
+            await this.setupUserProfile();
+
+            // Setup logout button
+            this.setupLogoutButton();
+
             // Setup filter
             this.setupFilter();
 
@@ -34,6 +40,43 @@ class UploadManager {
         } catch (error) {
             console.error('Upload manager initialization error:', error);
             notifications.error('Failed to initialize upload manager', 'Error');
+        }
+    }
+
+    /**
+     * Setup user profile display
+     */
+    async setupUserProfile() {
+        try {
+            const user = auth.getUser();
+            if (user) {
+                const profileName = document.querySelector('.profile-name');
+                const profileEmail = document.querySelector('.profile-email');
+                const profilePic = document.querySelector('.profile-pic');
+
+                if (profileName) profileName.textContent = user.name || user.email || 'User';
+                if (profileEmail) profileEmail.textContent = user.email || '-';
+                if (profilePic && user.picture) {
+                    profilePic.src = user.picture;
+                    profilePic.onerror = () => {
+                        profilePic.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || user.email)}&background=random`;
+                    };
+                }
+            }
+        } catch (error) {
+            console.error('Error setting up user profile:', error);
+        }
+    }
+
+    /**
+     * Setup logout button
+     */
+    setupLogoutButton() {
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', () => {
+                auth.logout();
+            });
         }
     }
 
@@ -89,18 +132,19 @@ class UploadManager {
      */
     async loadUploads() {
         try {
+            console.log('Loading uploads...');
             const tbody = document.getElementById('uploadsTableBody');
             
             // Show loading
             tbody.innerHTML = '<tr><td colspan="7" class="loading">Loading uploads...</td></tr>';
 
-            const uploads = await api.getUploads(
+            const response = await api.getUploads(
                 this.currentPage,
                 this.itemsPerPage,
                 this.currentFilter || null
             );
 
-            const items = uploads.items || uploads;
+            const items = response.items || response;
 
             if (!items || items.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No uploads found</td></tr>';
@@ -111,8 +155,8 @@ class UploadManager {
         } catch (error) {
             console.error('Error loading uploads:', error);
             const tbody = document.getElementById('uploadsTableBody');
-            tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Failed to load uploads</td></tr>';
-            notifications.error('Failed to load uploads', 'Error');
+            tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Failed to load uploads: ' + (error.message || 'Unknown error') + '</td></tr>';
+            notifications.error('Failed to load uploads: ' + (error.message || 'Unknown error'), 'Error');
         }
     }
 
@@ -181,8 +225,8 @@ class UploadManager {
         } catch (error) {
             console.error('Error loading upload details:', error);
             const content = document.getElementById('uploadDetailContent');
-            content.innerHTML = '<p class="empty-state">Failed to load upload details</p>';
-            notifications.error('Failed to load upload details', 'Error');
+            content.innerHTML = '<p class="empty-state">Failed to load upload details: ' + (error.message || 'Unknown error') + '</p>';
+            notifications.error('Failed to load upload details: ' + (error.message || 'Unknown error'), 'Error');
         }
     }
 
@@ -233,7 +277,7 @@ class UploadManager {
                 ` : ''}
 
                 ${upload.error_message ? `
-                    <div style="margin: var(--spacing-lg) 0; padding: var(--spacing-md); background-color: rgba(244, 67, 54, 0.1); border-left: 3px solid var(--error-color); border-radius: var(--radius-md);">
+                    <div style="margin: var(--spacing-lg) 0; padding: var(--spacing-md); background-color: rgba(244, 67, 54, 0.1); border-left: 3px solid var(--error-color); border-radius: var(--border-radius);">
                         <p style="margin: 0 0 var(--spacing-xs) 0; color: var(--error-color); font-weight: 600; font-size: 0.875rem;">Error</p>
                         <p style="margin: 0; color: var(--text-secondary); font-size: 0.875rem;">${upload.error_message}</p>
                     </div>
@@ -254,8 +298,8 @@ class UploadManager {
      */
     async retryUpload(uploadId) {
         try {
-            loading.setButtonLoading('retryUploadBtn', true);
-
+            console.log('Retrying upload:', uploadId);
+            
             await api.retryUpload(uploadId);
 
             notifications.success('Upload retry queued successfully', 'Success');
@@ -268,9 +312,7 @@ class UploadManager {
             }, 1500);
         } catch (error) {
             console.error('Error retrying upload:', error);
-            notifications.error('Failed to retry upload: ' + error.message, 'Error');
-        } finally {
-            loading.setButtonLoading('retryUploadBtn', false);
+            notifications.error('Failed to retry upload: ' + (error.message || 'Unknown error'), 'Error');
         }
     }
 
