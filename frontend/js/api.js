@@ -1,5 +1,6 @@
 /**
  * API Module - Backend API communication
+ * Handles all HTTP requests to Flask backend with proper error handling
  */
 
 const api = {
@@ -19,7 +20,8 @@ const api = {
         const config = {
             method,
             headers,
-            timeout: options.timeout || this.timeout
+            timeout: options.timeout || this.timeout,
+            credentials: 'include' // Include cookies for session management
         };
 
         if (data) {
@@ -83,71 +85,259 @@ const api = {
         return this.request('DELETE', endpoint, null, options);
     },
 
-    // Auth endpoints
-    async login(email, password) {
-        return this.post('/auth/login', { email, password });
-    },
-
-    async logout() {
-        return this.post('/auth/logout');
-    },
-
+    // ============ AUTH ENDPOINTS ============
+    
+    /**
+     * Get current user info
+     */
     async getCurrentUser() {
-        return this.get('/auth/user');
+        return this.get('/auth/status');
     },
 
+    /**
+     * Get authentication status
+     */
     async getAuthStatus() {
         return this.get('/auth/status');
     },
 
-    // Dashboard endpoints
+    /**
+     * Logout user
+     */
+    async logout() {
+        return this.post('/auth/logout');
+    },
+
+    // ============ DASHBOARD ENDPOINTS ============
+    
+    /**
+     * Get dashboard data (stats and recent uploads)
+     */
     async getDashboard() {
-        return this.get('/dashboard');
+        try {
+            const response = await this.get('/dashboard');
+            return {
+                total_queue: response.queue?.total || 0,
+                pending: response.queue?.pending || 0,
+                completed: response.queue?.completed || 0,
+                failed: response.queue?.failed || 0,
+                recent_uploads: response.recent_uploads || [],
+                user: response.user
+            };
+        } catch (error) {
+            console.error('Error fetching dashboard:', error);
+            throw error;
+        }
     },
 
+    /**
+     * Get recent uploads
+     */
     async getRecentUploads(limit = 5) {
-        return this.get(`/uploads/recent?limit=${limit}`);
+        try {
+            const response = await this.get('/uploads/recent?limit=' + limit);
+            return response.uploads || response;
+        } catch (error) {
+            console.error('Error fetching recent uploads:', error);
+            throw error;
+        }
     },
 
-    // Upload endpoints
+    // ============ UPLOAD ENDPOINTS ============
+    
+    /**
+     * Get uploads list with pagination and filtering
+     */
     async getUploads(page = 1, limit = 20, status = null) {
-        let url = `/uploads?page=${page}&limit=${limit}`;
-        if (status) url += `&status=${status}`;
-        return this.get(url);
+        try {
+            let url = `/uploads?page=${page}&limit=${limit}`;
+            if (status) url += `&status=${status}`;
+            const response = await this.get(url);
+            return {
+                items: response.uploads || response.items || response,
+                total: response.total,
+                pages: response.pages,
+                current_page: response.current_page
+            };
+        } catch (error) {
+            console.error('Error fetching uploads:', error);
+            throw error;
+        }
     },
 
+    /**
+     * Get single upload details
+     */
     async getUpload(uploadId) {
-        return this.get(`/uploads/${uploadId}`);
+        try {
+            const response = await this.get(`/uploads/${uploadId}`);
+            return response.upload || response;
+        } catch (error) {
+            console.error('Error fetching upload:', error);
+            throw error;
+        }
     },
 
+    /**
+     * Retry failed upload
+     */
     async retryUpload(uploadId) {
-        return this.post(`/uploads/${uploadId}/retry`);
+        try {
+            return this.post(`/uploads/${uploadId}/retry`, {});
+        } catch (error) {
+            console.error('Error retrying upload:', error);
+            throw error;
+        }
     },
 
-    // Queue endpoints
+    // ============ QUEUE ENDPOINTS ============
+    
+    /**
+     * Get queue items
+     */
     async getQueue() {
-        return this.get('/queue');
+        try {
+            const response = await this.get('/queue');
+            return {
+                items: response.queue || response.items || response,
+                total: response.total,
+                count: response.count
+            };
+        } catch (error) {
+            console.error('Error fetching queue:', error);
+            throw error;
+        }
     },
 
+    /**
+     * Add item to queue
+     */
     async addToQueue(data) {
-        return this.post('/queue', data);
+        try {
+            return this.post('/queue', data);
+        } catch (error) {
+            console.error('Error adding to queue:', error);
+            throw error;
+        }
     },
 
+    /**
+     * Remove item from queue
+     */
     async removeFromQueue(itemId) {
-        return this.delete(`/queue/${itemId}`);
+        try {
+            return this.delete(`/queue/${itemId}`);
+        } catch (error) {
+            console.error('Error removing from queue:', error);
+            throw error;
+        }
     },
 
-    // Video endpoints
+    /**
+     * Update queue item
+     */
+    async updateQueueItem(itemId, data) {
+        try {
+            return this.put(`/queue/${itemId}`, data);
+        } catch (error) {
+            console.error('Error updating queue item:', error);
+            throw error;
+        }
+    },
+
+    // ============ VIDEO ENDPOINTS ============
+    
+    /**
+     * Get user's YouTube videos
+     */
     async getVideos() {
-        return this.get('/videos');
+        try {
+            const response = await this.get('/videos');
+            return {
+                items: response.videos || response.items || response,
+                total: response.total,
+                count: response.count
+            };
+        } catch (error) {
+            console.error('Error fetching videos:', error);
+            throw error;
+        }
     },
 
-    // Settings endpoints
+    /**
+     * Download video by ID
+     */
+    async downloadVideo(videoId) {
+        try {
+            return this.post(`/videos/${videoId}/download`, {});
+        } catch (error) {
+            console.error('Error downloading video:', error);
+            throw error;
+        }
+    },
+
+    // ============ SETTINGS ENDPOINTS ============
+    
+    /**
+     * Get user settings
+     */
     async getSettings() {
-        return this.get('/settings');
+        try {
+            const response = await this.get('/settings');
+            return {
+                upload_interval: response.upload_interval || 150,
+                max_retries: response.max_retries || 3,
+                auto_schedule: response.auto_schedule !== undefined ? response.auto_schedule : true,
+                ...response
+            };
+        } catch (error) {
+            console.error('Error fetching settings:', error);
+            throw error;
+        }
     },
 
+    /**
+     * Update user settings
+     */
     async updateSettings(data) {
-        return this.put('/settings', data);
+        try {
+            return this.put('/settings', data);
+        } catch (error) {
+            console.error('Error updating settings:', error);
+            throw error;
+        }
+    },
+
+    // ============ LOGS ENDPOINTS ============
+    
+    /**
+     * Get application logs
+     */
+    async getLogs(page = 1, limit = 50, level = null) {
+        try {
+            let url = `/logs?page=${page}&limit=${limit}`;
+            if (level) url += `&level=${level}`;
+            const response = await this.get(url);
+            return {
+                logs: response.logs || response.items || response,
+                total: response.total
+            };
+        } catch (error) {
+            console.error('Error fetching logs:', error);
+            throw error;
+        }
+    },
+
+    // ============ HEALTH CHECK ============
+    
+    /**
+     * Health check endpoint
+     */
+    async healthCheck() {
+        try {
+            return this.get('/health');
+        } catch (error) {
+            return { status: 'error', message: error.message };
+        }
     }
 };
