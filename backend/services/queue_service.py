@@ -23,11 +23,15 @@ class QueueService:
             if not video:
                 raise NotFoundError('Video')
             
-            # Check if already in queue
-            existing = QueueItem.query.filter_by(
-                user_id=user_id,
-                video_id=video_id,
-                status__in=[QueueItem.STATUS_PENDING, QueueItem.STATUS_DOWNLOADING, QueueItem.STATUS_DOWNLOADED]
+            # Check if already in queue - FIX: Use proper SQLAlchemy syntax
+            existing = QueueItem.query.filter(
+                QueueItem.user_id == user_id,
+                QueueItem.video_id == video_id,
+                QueueItem.status.in_([
+                    QueueItem.STATUS_PENDING, 
+                    QueueItem.STATUS_DOWNLOADING, 
+                    QueueItem.STATUS_DOWNLOADED
+                ])
             ).first()
             
             if existing:

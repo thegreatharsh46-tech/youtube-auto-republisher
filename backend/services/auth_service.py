@@ -152,7 +152,7 @@ class AuthService:
                 logger.error(f'No refresh token available for user: {user.email}')
                 raise TokenRefreshError('No refresh token available')
             
-            # Decrypt refresh token
+            # Decrypt refresh token - FIX: Properly decrypt before using
             refresh_token = self.encryption.decrypt(user.refresh_token)
             
             # Create credentials object
@@ -183,13 +183,18 @@ class AuthService:
     def get_valid_credentials(self, user):
         """Get valid credentials, refreshing if necessary"""
         try:
-            # Decrypt access token
+            # Decrypt access token - FIX: Properly decrypt before using
             access_token = self.encryption.decrypt(user.access_token)
+            
+            # Decrypt refresh token if exists
+            refresh_token = None
+            if user.refresh_token:
+                refresh_token = self.encryption.decrypt(user.refresh_token)
             
             # Create credentials object
             credentials = Credentials(
                 token=access_token,
-                refresh_token=user.refresh_token,
+                refresh_token=refresh_token,
                 token_uri='https://oauth2.googleapis.com/token',
                 client_id=self.client_id,
                 client_secret=self.client_secret,
