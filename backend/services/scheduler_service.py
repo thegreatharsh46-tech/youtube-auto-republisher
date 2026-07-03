@@ -2,7 +2,6 @@ import logging
 from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
-from apscheduler.triggers.cron import CronTrigger
 from backend.models import db, User, QueueItem, UploadLog
 
 logger = logging.getLogger(__name__)
@@ -116,6 +115,8 @@ class SchedulerService:
                 )
                 
                 queue_item.local_file_path = file_path
+                db.session.commit()  # FIX: Commit file path update
+                
                 queue_service.update_item_status(
                     queue_item.id,
                     QueueItem.STATUS_DOWNLOADED,

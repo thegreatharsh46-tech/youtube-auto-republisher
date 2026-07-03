@@ -15,6 +15,7 @@ class UploadService:
     
     def upload_video(self, user, queue_item, download_service, youtube_service):
         """Upload video to YouTube"""
+        upload_log = None
         try:
             # Get file path
             file_path = download_service.get_download_path(queue_item.video.youtube_video_id)
@@ -69,11 +70,13 @@ class UploadService:
         except Exception as e:
             logger.error(f'Upload failed: {str(e)}')
             
-            # Update logs
+            # Update logs - FIX: Check if upload_log exists before accessing
             try:
-                upload_log.status = UploadLog.STATUS_FAILED
-                upload_log.error_message = str(e)
-                queue_item.status = QueueItem.STATUS_FAILED
+                if upload_log:
+                    upload_log.status = UploadLog.STATUS_FAILED
+                    upload_log.error_message = str(e)
+                if queue_item:
+                    queue_item.status = QueueItem.STATUS_FAILED
                 db.session.commit()
             except:
                 pass
