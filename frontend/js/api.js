@@ -28,10 +28,24 @@ const api = {
 
         try {
             const response = await fetch(url, config);
-            const result = await response.json();
+            
+            // Handle response based on content type
+            const contentType = response.headers.get('content-type');
+            let result;
+            
+            if (contentType && contentType.includes('application/json')) {
+                result = await response.json();
+            } else {
+                result = await response.text();
+            }
 
             if (!response.ok) {
-                throw new Error(result.error || `API Error: ${response.status}`);
+                throw {
+                    status: response.status,
+                    error: result.error || `API Error: ${response.status}`,
+                    message: result.message || 'An error occurred',
+                    code: result.code || 'UNKNOWN_ERROR'
+                };
             }
 
             return result;
@@ -80,6 +94,10 @@ const api = {
 
     async getCurrentUser() {
         return this.get('/auth/user');
+    },
+
+    async getAuthStatus() {
+        return this.get('/auth/status');
     },
 
     // Dashboard endpoints
