@@ -1,5 +1,6 @@
 /**
  * Dashboard Module - Dashboard functionality and page management
+ * Handles navigation, data loading, and user interactions
  */
 
 class DashboardManager {
@@ -16,11 +17,17 @@ class DashboardManager {
         try {
             console.log('Initializing dashboard...');
             
+            // Setup user profile
+            await this.setupUserProfile();
+            
             // Setup navigation
             this.setupNavigation();
             
             // Setup sidebar toggle
             this.setupSidebarToggle();
+            
+            // Setup logout button
+            this.setupLogoutButton();
             
             // Load dashboard data
             await this.loadDashboard();
@@ -32,6 +39,43 @@ class DashboardManager {
         } catch (error) {
             console.error('Dashboard initialization error:', error);
             notifications.error('Failed to initialize dashboard', 'Error');
+        }
+    }
+
+    /**
+     * Setup user profile display
+     */
+    async setupUserProfile() {
+        try {
+            const user = auth.getUser();
+            if (user) {
+                const profileName = document.querySelector('.profile-name');
+                const profileEmail = document.querySelector('.profile-email');
+                const profilePic = document.querySelector('.profile-pic');
+
+                if (profileName) profileName.textContent = user.name || user.email || 'User';
+                if (profileEmail) profileEmail.textContent = user.email || '-';
+                if (profilePic && user.picture) {
+                    profilePic.src = user.picture;
+                    profilePic.onerror = () => {
+                        profilePic.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || user.email)}&background=random`;
+                    };
+                }
+            }
+        } catch (error) {
+            console.error('Error setting up user profile:', error);
+        }
+    }
+
+    /**
+     * Setup logout button
+     */
+    setupLogoutButton() {
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', () => {
+                auth.logout();
+            });
         }
     }
 
@@ -117,14 +161,20 @@ class DashboardManager {
      */
     async loadDashboard() {
         try {
+            console.log('Loading dashboard data...');
             const data = await api.getDashboard();
             this.dashboardData = data;
 
             // Update stats
-            document.getElementById('statTotalQueue').textContent = data.total_queue || 0;
-            document.getElementById('statPending').textContent = data.pending || 0;
-            document.getElementById('statCompleted').textContent = data.completed || 0;
-            document.getElementById('statFailed').textContent = data.failed || 0;
+            const totalQueue = document.getElementById('statTotalQueue');
+            const pending = document.getElementById('statPending');
+            const completed = document.getElementById('statCompleted');
+            const failed = document.getElementById('statFailed');
+
+            if (totalQueue) totalQueue.textContent = data.total_queue || 0;
+            if (pending) pending.textContent = data.pending || 0;
+            if (completed) completed.textContent = data.completed || 0;
+            if (failed) failed.textContent = data.failed || 0;
 
             // Load recent uploads
             await this.loadRecentUploads();
@@ -181,25 +231,28 @@ class DashboardManager {
      */
     async loadVideos() {
         try {
+            console.log('Loading videos...');
             const videosGrid = document.getElementById('videosGrid');
-            loading.show('videosGrid');
+            if (!videosGrid) return;
+
+            videosGrid.innerHTML = '<p class="loading">Loading videos...</p>';
 
             const response = await api.getVideos();
             const videos = response.items || response;
 
             if (!videos || videos.length === 0) {
-                loading.empty('videosGrid', 'No videos found');
+                videosGrid.innerHTML = '<p class="empty-state">No videos found. Make sure you\'ve authenticated with YouTube.</p>';
                 return;
             }
 
             videosGrid.innerHTML = videos.map(video => `
                 <div class="video-card">
                     <img src="${utils.getYouTubeThumbnail(video.youtube_id) || 'https://via.placeholder.com/250x140'}" 
-                         alt="${video.title}" class="video-thumbnail">
+                         alt="${video.title}" class="video-thumbnail" onerror="this.src='https://via.placeholder.com/250x140'">
                     <h3 class="video-title">${utils.truncate(video.title, 40)}</h3>
                     <p class="video-meta">${utils.truncate(video.description, 80) || 'No description'}</p>
                     <div class="video-actions">
-                        <button class="btn btn-primary btn-small" onclick="dashboardManager.addVideoToQueue('${video.youtube_id}', '${video.title}')">
+                        <button class="btn btn-primary btn-small" onclick="dashboardManager.addVideoToQueue('${video.youtube_id}', '${video.title.replace(/'/g, "\\'")}')">
                             Add to Queue
                         </button>
                     </div>
@@ -207,7 +260,10 @@ class DashboardManager {
             `).join('');
         } catch (error) {
             console.error('Error loading videos:', error);
-            loading.error('videosGrid', 'Failed to load videos');
+            const videosGrid = document.getElementById('videosGrid');
+            if (videosGrid) {
+                videosGrid.innerHTML = '<p class="empty-state">Failed to load videos: ' + (error.message || 'Unknown error') + '</p>';
+            }
         }
     }
 
@@ -216,8 +272,8 @@ class DashboardManager {
      */
     async addVideoToQueue(videoId, title) {
         try {
-            loading.setButtonLoading(`add-video-${videoId}`, true);
-
+            console.log('Adding video to queue:', videoId);
+            
             await api.addToQueue({
                 youtube_id: videoId,
                 title: title
@@ -229,9 +285,7 @@ class DashboardManager {
             await this.loadDashboard();
         } catch (error) {
             console.error('Error adding to queue:', error);
-            notifications.error('Failed to add video to queue', 'Error');
-        } finally {
-            loading.setButtonLoading(`add-video-${videoId}`, false);
+            notifications.error('Failed to add video to queue: ' + (error.message || 'Unknown error'), 'Error');
         }
     }
 
@@ -240,14 +294,17 @@ class DashboardManager {
      */
     async loadQueue() {
         try {
+            console.log('Loading queue...');
             const queueList = document.getElementById('queueList');
-            loading.show('queueList');
+            if (!queueList) return;
+
+            queueList.innerHTML = '<p class="loading">Loading queue...</p>';
 
             const response = await api.getQueue();
             const items = response.items || response;
 
             if (!items || items.length === 0) {
-                loading.empty('queueList', 'Queue is empty');
+                queueList.innerHTML = '<p class="empty-state">Queue is empty. Add videos from the "My Videos" page.</p>';
                 return;
             }
 
@@ -273,7 +330,10 @@ class DashboardManager {
             `).join('');
         } catch (error) {
             console.error('Error loading queue:', error);
-            loading.error('queueList', 'Failed to load queue');
+            const queueList = document.getElementById('queueList');
+            if (queueList) {
+                queueList.innerHTML = '<p class="empty-state">Failed to load queue: ' + (error.message || 'Unknown error') + '</p>';
+            }
         }
     }
 
@@ -291,7 +351,7 @@ class DashboardManager {
             await this.loadQueue();
         } catch (error) {
             console.error('Error removing from queue:', error);
-            notifications.error('Failed to remove from queue', 'Error');
+            notifications.error('Failed to remove from queue: ' + (error.message || 'Unknown error'), 'Error');
         }
     }
 
@@ -300,6 +360,7 @@ class DashboardManager {
      */
     async loadSettings() {
         try {
+            console.log('Loading settings...');
             const settings = await api.getSettings();
 
             const uploadIntervalInput = document.getElementById('uploadInterval');
@@ -319,7 +380,7 @@ class DashboardManager {
             }
         } catch (error) {
             console.error('Error loading settings:', error);
-            notifications.error('Failed to load settings', 'Error');
+            notifications.error('Failed to load settings: ' + (error.message || 'Unknown error'), 'Error');
         }
     }
 
@@ -341,8 +402,6 @@ class DashboardManager {
                 return;
             }
 
-            loading.setButtonLoading('saveSettings', true);
-
             await api.updateSettings({
                 upload_interval: uploadInterval,
                 max_retries: maxRetries
@@ -351,9 +410,7 @@ class DashboardManager {
             notifications.success('Settings saved successfully', 'Success');
         } catch (error) {
             console.error('Error saving settings:', error);
-            notifications.error('Failed to save settings', 'Error');
-        } finally {
-            loading.setButtonLoading('saveSettings', false);
+            notifications.error('Failed to save settings: ' + (error.message || 'Unknown error'), 'Error');
         }
     }
 
