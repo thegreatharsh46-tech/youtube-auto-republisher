@@ -1,10 +1,11 @@
 /**
  * Authentication Module - User authentication and session management
+ * Handles OAuth login, logout, and session validation
  */
 
 const auth = {
     user: null,
-    token: null,
+    authenticated: false,
     refreshInterval: null,
 
     /**
@@ -12,48 +13,25 @@ const auth = {
      */
     async init() {
         try {
-            // Check if token exists
-            this.token = utils.getStorage('authToken');
-            if (!this.token) {
-                return false;
-            }
-
-            // Verify token by fetching current user
-            try {
-                this.user = await api.getCurrentUser();
+            console.log('Initializing authentication...');
+            
+            // Check authentication status
+            const status = await api.getAuthStatus();
+            
+            if (status.authenticated) {
+                this.user = status.user;
+                this.authenticated = true;
+                console.log('User authenticated:', this.user.email);
                 this.startAuthMonitoring();
                 return true;
-            } catch (error) {
-                console.error('Token verification failed:', error);
-                this.logout();
+            } else {
+                this.authenticated = false;
                 return false;
             }
         } catch (error) {
             console.error('Auth initialization error:', error);
+            this.authenticated = false;
             return false;
-        }
-    },
-
-    /**
-     * Login user
-     */
-    async login(email, password) {
-        try {
-            const response = await api.login(email, password);
-            this.token = response.token;
-            this.user = response.user;
-
-            // Save token
-            utils.setStorage('authToken', this.token);
-            utils.setStorage('user', this.user);
-
-            // Start monitoring
-            this.startAuthMonitoring();
-
-            return true;
-        } catch (error) {
-            console.error('Login failed:', error);
-            throw error;
         }
     },
 
@@ -62,17 +40,17 @@ const auth = {
      */
     async logout() {
         try {
+            console.log('Logging out user...');
             await api.logout();
         } catch (error) {
             console.error('Logout error:', error);
         }
 
-        this.token = null;
         this.user = null;
-        utils.removeStorage('authToken');
-        utils.removeStorage('user');
+        this.authenticated = false;
         this.stopAuthMonitoring();
 
+        // Redirect to login page
         window.location.href = '/login';
     },
 
@@ -87,14 +65,15 @@ const auth = {
      * Check if user is authenticated
      */
     isAuthenticated() {
-        return !!this.token && !!this.user;
+        return this.authenticated && !!this.user;
     },
 
     /**
-     * Get auth token
+     * Update user profile
      */
-    getToken() {
-        return this.token;
+    setUser(user) {
+        this.user = user;
+        this.authenticated = !!user;
     },
 
     /**
@@ -122,9 +101,13 @@ const auth = {
      */
     async checkAuthStatus() {
         try {
-            const user = await api.getCurrentUser();
-            this.user = user;
-            utils.setStorage('user', user);
+            const status = await api.getAuthStatus();
+            if (status.authenticated) {
+                this.user = status.user;
+                this.authenticated = true;
+            } else {
+                this.logout();
+            }
         } catch (error) {
             console.error('Auth check failed:', error);
             this.logout();
