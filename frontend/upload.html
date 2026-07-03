@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Management - YouTube Auto Republisher</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/responsive.css">
+</head>
+<body class="upload-page">
+    <div class="container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>YouTube Auto Republisher</h2>
+                <button class="menu-toggle" id="menuToggle">☰</button>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="/" class="nav-item" data-page="dashboard">
+                    <span class="icon">📊</span>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#" class="nav-item" data-page="videos">
+                    <span class="icon">🎬</span>
+                    <span>My Videos</span>
+                </a>
+                <a href="#" class="nav-item" data-page="queue">
+                    <span class="icon">📋</span>
+                    <span>Queue</span>
+                </a>
+                <a href="/uploads" class="nav-item active" data-page="uploads">
+                    <span class="icon">📤</span>
+                    <span>Uploads</span>
+                </a>
+                <a href="#" class="nav-item" data-page="settings">
+                    <span class="icon">⚙️</span>
+                    <span>Settings</span>
+                </a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="user-profile" id="userProfile">
+                    <img src="" alt="Profile" class="profile-pic">
+                    <div class="profile-info">
+                        <p class="profile-name">Loading...</p>
+                        <p class="profile-email">-</p>
+                    </div>
+                </div>
+                <button class="btn btn-logout" id="logoutBtn">Logout</button>
+            </div>
+        </aside>
+        
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="page-header">
+                <h1>Upload Management</h1>
+                <p>Track and manage your video uploads</p>
+            </div>
+            
+            <div class="uploads-section">
+                <div class="section-header">
+                    <h2>Upload History</h2>
+                    <div class="filter-controls">
+                        <select id="statusFilter" class="filter-select">
+                            <option value="">All Statuses</option>
+                            <option value="pending">Pending</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="completed">Completed</option>
+                            <option value="failed">Failed</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="uploads-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Status</th>
+                                <th>Video</th>
+                                <th>Progress</th>
+                                <th>YouTube ID</th>
+                                <th>Retries</th>
+                                <th>Started</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="uploadsTableBody">
+                            <tr>
+                                <td colspan="7" class="loading">Loading uploads...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Upload Detail Modal -->
+            <div class="modal" id="uploadDetailModal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>Upload Details</h2>
+                        <button class="modal-close" id="closeUploadModal">✕</button>
+                    </div>
+                    
+                    <div class="modal-body" id="uploadDetailContent">
+                        <p>Loading...</p>
+                    </div>
+                    
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" id="closeUploadDetailBtn">Close</button>
+                        <button class="btn btn-primary" id="retryUploadBtn" style="display: none;">
+                            Retry Upload
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toastContainer"></div>
+    
+    <script src="/js/api.js"></script>
+    <script src="/js/upload.js"></script>
+</body>
+</html>
