@@ -1,363 +1,135 @@
 /**
- * API Module - Centralized API Communication
- * Handles all backend API requests with proper error handling and response parsing
+ * API Module - Backend API communication
  */
 
-class APIClient {
-    constructor() {
-        this.baseURL = '/api';
-        this.timeout = 30000; // 30 seconds
-    }
+const api = {
+    baseURL: '/api',
+    timeout: 30000,
 
     /**
-     * Make HTTP request with error handling
+     * Make API request
      */
-    async request(endpoint, options = {}) {
-        const {
-            method = 'GET',
-            body = null,
-            headers = {},
-            isJson = true
-        } = options;
-
+    async request(method, endpoint, data = null, options = {}) {
         const url = `${this.baseURL}${endpoint}`;
-        const config = {
-            method,
-            headers: {
-                'Content-Type': 'application/json',
-                ...headers
-            }
+        const headers = {
+            'Content-Type': 'application/json',
+            ...options.headers
         };
 
-        if (body) {
-            config.body = JSON.stringify(body);
+        const config = {
+            method,
+            headers,
+            timeout: options.timeout || this.timeout
+        };
+
+        if (data) {
+            config.body = JSON.stringify(data);
         }
 
         try {
-            const response = await Promise.race([
-                fetch(url, config),
-                new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('Request timeout')), this.timeout)
-                )
-            ]);
+            const response = await fetch(url, config);
+            const result = await response.json();
 
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || `HTTP ${response.status}`);
+                throw new Error(result.error || `API Error: ${response.status}`);
             }
 
-            return isJson ? await response.json() : response;
+            return result;
         } catch (error) {
             console.error(`API Error [${method} ${endpoint}]:`, error);
             throw error;
         }
-    }
+    },
 
     /**
      * GET request
      */
-    async get(endpoint) {
-        return this.request(endpoint, { method: 'GET' });
-    }
+    get(endpoint, options) {
+        return this.request('GET', endpoint, null, options);
+    },
 
     /**
      * POST request
      */
-    async post(endpoint, body) {
-        return this.request(endpoint, { method: 'POST', body });
-    }
+    post(endpoint, data, options) {
+        return this.request('POST', endpoint, data, options);
+    },
 
     /**
      * PUT request
      */
-    async put(endpoint, body) {
-        return this.request(endpoint, { method: 'PUT', body });
-    }
+    put(endpoint, data, options) {
+        return this.request('PUT', endpoint, data, options);
+    },
 
     /**
      * DELETE request
      */
-    async delete(endpoint) {
-        return this.request(endpoint, { method: 'DELETE' });
-    }
+    delete(endpoint, options) {
+        return this.request('DELETE', endpoint, null, options);
+    },
 
-    /**
-     * PATCH request
-     */
-    async patch(endpoint, body) {
-        return this.request(endpoint, { method: 'PATCH', body });
-    }
+    // Auth endpoints
+    async login(email, password) {
+        return this.post('/auth/login', { email, password });
+    },
 
-    // ========== Authentication ==========
-
-    /**
-     * Get current user profile
-     */
-    async getUserProfile() {
-        try {
-            return await this.get('/user/profile');
-        } catch (error) {
-            console.error('Failed to get user profile:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Logout user
-     */
     async logout() {
-        try {
-            return await this.post('/auth/logout', {});
-        } catch (error) {
-            console.error('Failed to logout:', error);
-            throw error;
-        }
-    }
+        return this.post('/auth/logout');
+    },
 
-    // ========== Dashboard ==========
+    async getCurrentUser() {
+        return this.get('/auth/user');
+    },
 
-    /**
-     * Get dashboard data with stats
-     */
+    // Dashboard endpoints
     async getDashboard() {
-        try {
-            return await this.get('/dashboard');
-        } catch (error) {
-            console.error('Failed to get dashboard data:', error);
-            throw error;
-        }
-    }
+        return this.get('/dashboard');
+    },
 
-    /**
-     * Get queue statistics
-     */
-    async getQueueStats() {
-        try {
-            return await this.get('/queue/stats');
-        } catch (error) {
-            console.error('Failed to get queue stats:', error);
-            throw error;
-        }
-    }
-
-    // ========== Videos ==========
-
-    /**
-     * Get all user videos
-     */
-    async getVideos(page = 1, limit = 50) {
-        try {
-            return await this.get(`/videos?page=${page}&limit=${limit}`);
-        } catch (error) {
-            console.error('Failed to get videos:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Get specific video details
-     */
-    async getVideo(videoId) {
-        try {
-            return await this.get(`/videos/${videoId}`);
-        } catch (error) {
-            console.error(`Failed to get video ${videoId}:`, error);
-            throw error;
-        }
-    }
-
-    /**
-     * Search videos by title or URL
-     */
-    async searchVideos(query) {
-        try {
-            return await this.get(`/videos/search?q=${encodeURIComponent(query)}`);
-        } catch (error) {
-            console.error('Failed to search videos:', error);
-            throw error;
-        }
-    }
-
-    // ========== Queue ==========
-
-    /**
-     * Get all queue items
-     */
-    async getQueue(page = 1, limit = 50) {
-        try {
-            return await this.get(`/queue?page=${page}&limit=${limit}`);
-        } catch (error) {
-            console.error('Failed to get queue:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Get specific queue item
-     */
-    async getQueueItem(itemId) {
-        try {
-            return await this.get(`/queue/${itemId}`);
-        } catch (error) {
-            console.error(`Failed to get queue item ${itemId}:`, error);
-            throw error;
-        }
-    }
-
-    /**
-     * Add video to queue
-     */
-    async addToQueue(videoData) {
-        try {
-            return await this.post('/queue', videoData);
-        } catch (error) {
-            console.error('Failed to add to queue:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Update queue item
-     */
-    async updateQueueItem(itemId, updates) {
-        try {
-            return await this.put(`/queue/${itemId}`, updates);
-        } catch (error) {
-            console.error(`Failed to update queue item ${itemId}:`, error);
-            throw error;
-        }
-    }
-
-    /**
-     * Remove item from queue
-     */
-    async removeFromQueue(itemId) {
-        try {
-            return await this.delete(`/queue/${itemId}`);
-        } catch (error) {
-            console.error(`Failed to remove queue item ${itemId}:`, error);
-            throw error;
-        }
-    }
-
-    // ========== Uploads ==========
-
-    /**
-     * Get upload history
-     */
-    async getUploads(page = 1, limit = 50, status = null) {
-        try {
-            let endpoint = `/uploads?page=${page}&limit=${limit}`;
-            if (status) {
-                endpoint += `&status=${status}`;
-            }
-            return await this.get(endpoint);
-        } catch (error) {
-            console.error('Failed to get uploads:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Get specific upload details
-     */
-    async getUpload(uploadId) {
-        try {
-            return await this.get(`/uploads/${uploadId}`);
-        } catch (error) {
-            console.error(`Failed to get upload ${uploadId}:`, error);
-            throw error;
-        }
-    }
-
-    /**
-     * Get upload progress
-     */
-    async getUploadProgress(uploadId) {
-        try {
-            return await this.get(`/uploads/${uploadId}/progress`);
-        } catch (error) {
-            console.error(`Failed to get upload progress ${uploadId}:`, error);
-            throw error;
-        }
-    }
-
-    /**
-     * Retry failed upload
-     */
-    async retryUpload(uploadId) {
-        try {
-            return await this.post(`/uploads/${uploadId}/retry`, {});
-        } catch (error) {
-            console.error(`Failed to retry upload ${uploadId}:`, error);
-            throw error;
-        }
-    }
-
-    /**
-     * Get recent uploads (for dashboard)
-     */
     async getRecentUploads(limit = 5) {
-        try {
-            return await this.get(`/uploads?limit=${limit}&sort=recent`);
-        } catch (error) {
-            console.error('Failed to get recent uploads:', error);
-            throw error;
-        }
-    }
+        return this.get(`/uploads/recent?limit=${limit}`);
+    },
 
-    // ========== Settings ==========
+    // Upload endpoints
+    async getUploads(page = 1, limit = 20, status = null) {
+        let url = `/uploads?page=${page}&limit=${limit}`;
+        if (status) url += `&status=${status}`;
+        return this.get(url);
+    },
 
-    /**
-     * Get user settings
-     */
+    async getUpload(uploadId) {
+        return this.get(`/uploads/${uploadId}`);
+    },
+
+    async retryUpload(uploadId) {
+        return this.post(`/uploads/${uploadId}/retry`);
+    },
+
+    // Queue endpoints
+    async getQueue() {
+        return this.get('/queue');
+    },
+
+    async addToQueue(data) {
+        return this.post('/queue', data);
+    },
+
+    async removeFromQueue(itemId) {
+        return this.delete(`/queue/${itemId}`);
+    },
+
+    // Video endpoints
+    async getVideos() {
+        return this.get('/videos');
+    },
+
+    // Settings endpoints
     async getSettings() {
-        try {
-            return await this.get('/settings');
-        } catch (error) {
-            console.error('Failed to get settings:', error);
-            throw error;
-        }
+        return this.get('/settings');
+    },
+
+    async updateSettings(data) {
+        return this.put('/settings', data);
     }
-
-    /**
-     * Update user settings
-     */
-    async updateSettings(settings) {
-        try {
-            return await this.put('/settings', settings);
-        } catch (error) {
-            console.error('Failed to update settings:', error);
-            throw error;
-        }
-    }
-
-    // ========== Health Check ==========
-
-    /**
-     * Check backend health status
-     */
-    async healthCheck() {
-        try {
-            return await this.get('/health');
-        } catch (error) {
-            console.error('Health check failed:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Check if user is authenticated
-     */
-    async checkAuth() {
-        try {
-            await this.get('/user/profile');
-            return true;
-        } catch (error) {
-            return false;
-        }
-    }
-}
-
-// Create global API client instance
-const api = new APIClient();
+};

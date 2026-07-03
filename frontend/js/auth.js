@@ -1,53 +1,61 @@
 /**
- * Authentication Module - Handles OAuth login flow and session management
+ * Authentication Module - User authentication and session management
  */
 
-class AuthManager {
-    constructor() {
-        this.user = null;
-        this.isAuthenticated = false;
-        this.loginCheckInterval = null;
-    }
+const auth = {
+    user: null,
+    token: null,
+    refreshInterval: null,
 
     /**
      * Initialize authentication
      */
     async init() {
         try {
-            // Check if user is already authenticated
-            const user = await api.getUserProfile();
-            this.setUser(user);
-            return true;
+            // Check if token exists
+            this.token = utils.getStorage('authToken');
+            if (!this.token) {
+                return false;
+            }
+
+            // Verify token by fetching current user
+            try {
+                this.user = await api.getCurrentUser();
+                this.startAuthMonitoring();
+                return true;
+            } catch (error) {
+                console.error('Token verification failed:', error);
+                this.logout();
+                return false;
+            }
         } catch (error) {
-            console.log('User not authenticated');
+            console.error('Auth initialization error:', error);
             return false;
         }
-    }
+    },
 
     /**
-     * Set user data
+     * Login user
      */
-    setUser(user) {
-        this.user = user;
-        this.isAuthenticated = !!user;
-        this.saveUserToStorage();
-        this.updateUIWithUser();
-        console.log('User set:', user);
-    }
+    async login(email, password) {
+        try {
+            const response = await api.login(email, password);
+            this.token = response.token;
+            this.user = response.user;
 
-    /**
-     * Get current user
-     */
-    getUser() {
-        return this.user;
-    }
+            // Save token
+            utils.setStorage('authToken', this.token);
+            utils.setStorage('user', this.user);
 
-    /**
-     * Check if user is authenticated
-     */
-    isLoggedIn() {
-        return this.isAuthenticated && !!this.user;
-    }
+            // Start monitoring
+            this.startAuthMonitoring();
+
+            return true;
+        } catch (error) {
+            console.error('Login failed:', error);
+            throw error;
+        }
+    },
 
     /**
      * Logout user
@@ -55,154 +63,71 @@ class AuthManager {
     async logout() {
         try {
             await api.logout();
-            this.user = null;
-            this.isAuthenticated = false;
-            this.clearUserFromStorage();
-            this.updateUIWithUser();
-            notifications.success('Logged out successfully', 'Logout');
-            // Redirect to login
-            setTimeout(() => {
-                window.location.href = '/login';
-            }, 1500);
         } catch (error) {
-            notifications.error('Logout failed: ' + error.message, 'Error');
             console.error('Logout error:', error);
         }
-    }
 
-    /**
-     * Save user to localStorage
-     */
-    saveUserToStorage() {
-        if (this.user) {
-            utils.setStorage('user', this.user);
-        }
-    }
-
-    /**
-     * Load user from localStorage
-     */
-    loadUserFromStorage() {
-        const user = utils.getStorage('user');
-        if (user) {
-            this.setUser(user);
-        }
-    }
-
-    /**
-     * Clear user from storage
-     */
-    clearUserFromStorage() {
+        this.token = null;
+        this.user = null;
+        utils.removeStorage('authToken');
         utils.removeStorage('user');
-    }
+        this.stopAuthMonitoring();
+
+        window.location.href = '/login';
+    },
 
     /**
-     * Update UI with user information
+     * Get current user
      */
-    updateUIWithUser() {
-        const userProfile = document.getElementById('userProfile');
-        const profilePic = document.querySelector('.profile-pic');
-        const profileName = document.querySelector('.profile-name');
-        const profileEmail = document.querySelector('.profile-email');
-
-        if (userProfile && this.user) {
-            if (profilePic && this.user.profile_picture) {
-                profilePic.src = this.user.profile_picture;
-                profilePic.onerror = () => {
-                    profilePic.src = 'https://via.placeholder.com/40';
-                };
-            }
-            if (profileName) {
-                profileName.textContent = this.user.name || 'User';
-            }
-            if (profileEmail) {
-                profileEmail.textContent = this.user.email || '-';
-            }
-        }
-    }
+    getUser() {
+        return this.user;
+    },
 
     /**
-     * Check authentication and redirect if needed
+     * Check if user is authenticated
      */
-    requireAuth() {
-        if (!this.isLoggedIn()) {
-            console.log('User not authenticated, redirecting to login');
-            window.location.href = '/login';
-            return false;
-        }
-        return true;
-    }
+    isAuthenticated() {
+        return !!this.token && !!this.user;
+    },
 
     /**
-     * Monitor auth status changes
+     * Get auth token
+     */
+    getToken() {
+        return this.token;
+    },
+
+    /**
+     * Start authentication monitoring
      */
     startAuthMonitoring() {
         // Check auth status every 5 minutes
-        this.loginCheckInterval = setInterval(async () => {
-            try {
-                const isAuth = await api.checkAuth();
-                if (!isAuth && this.isAuthenticated) {
-                    console.log('Session expired, redirecting to login');
-                    this.user = null;
-                    this.isAuthenticated = false;
-                    window.location.href = '/login';
-                }
-            } catch (error) {
-                console.error('Auth check error:', error);
-            }
+        this.refreshInterval = setInterval(() => {
+            this.checkAuthStatus();
         }, 5 * 60 * 1000);
-    }
+    },
 
     /**
-     * Stop auth monitoring
+     * Stop authentication monitoring
      */
     stopAuthMonitoring() {
-        if (this.loginCheckInterval) {
-            clearInterval(this.loginCheckInterval);
-            this.loginCheckInterval = null;
+        if (this.refreshInterval) {
+            clearInterval(this.refreshInterval);
+            this.refreshInterval = null;
+        }
+    },
+
+    /**
+     * Check authentication status
+     */
+    async checkAuthStatus() {
+        try {
+            const user = await api.getCurrentUser();
+            this.user = user;
+            utils.setStorage('user', user);
+        } catch (error) {
+            console.error('Auth check failed:', error);
+            this.logout();
         }
     }
-}
-
-// Create global auth manager instance
-const auth = new AuthManager();
-
-/**
- * Initialize authentication on page load
- */
-document.addEventListener('DOMContentLoaded', async () => {
-    // Check if on login page
-    const isLoginPage = document.body.classList.contains('login-page');
-
-    if (!isLoginPage) {
-        // On dashboard/upload pages, check authentication
-        const isAuthenticated = await auth.init();
-        if (!isAuthenticated) {
-            window.location.href = '/login';
-            return;
-        }
-        // Start monitoring auth status
-        auth.startAuthMonitoring();
-    } else {
-        // On login page, check if already logged in
-        const isAuthenticated = await auth.init();
-        if (isAuthenticated) {
-            window.location.href = '/';
-        }
-    }
-
-    // Setup logout button
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', () => {
-            auth.logout();
-        });
-    }
-});
-
-/**
- * Cleanup on page unload
- */
-window.addEventListener('beforeunload', () => {
-    auth.stopAuthMonitoring();
-});
+};
